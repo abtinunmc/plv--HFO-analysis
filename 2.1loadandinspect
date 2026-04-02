@@ -1,0 +1,43 @@
+%% Step 2.1: Load & Inspect Raw Data
+
+%% Setup
+clc; clear; close all;
+
+addpath('U:\shared\users\ckugel\Misc_Functions');
+filePath = 'U:\shared\database\ieeg-UM\rawdata\sub-umich0018\ses-ieeg01\ieeg\sub-umich0018_ses-ieeg01_task-all_run-01_ieeg.lay';
+cd(fileparts(filePath));
+
+%% Load File
+reader = fileReader(filePath);
+fs = reader.fs;
+nChan = reader.nChan;
+nSamples = reader.nSamples;
+
+fprintf('═══════════════════════════════════════════════════\n');
+fprintf('  Sampling Rate: %d Hz\n', fs);
+fprintf('  Channels: %d\n', nChan);
+fprintf('  Duration: %.1f min\n', nSamples/fs/60);
+fprintf('═══════════════════════════════════════════════════\n');
+
+%% Load Sample (60 sec)
+data = reader.getData(1, min(60*fs, nSamples));
+fprintf('✓ Loaded: %d × %d\n', size(data,1), size(data,2));
+
+%% Visualize
+figure('Position', [100 100 1200 600]);
+
+% Multi-channel plot (10 sec, 20 channels)
+subplot(2,2,[1 3]);
+stackedplot(data(1:min(20,nChan), 1:min(10*fs,size(data,2)))', 'DisplayLabels', string(1:min(20,nChan)));
+title('Raw iEEG');
+
+% Power spectrum
+subplot(2,2,[2 4]);
+pwelch(data(1,:), hanning(2*fs), fs, 2*fs, fs);
+xlim([0 500]);
+xline(80, 'r--'); xline(500, 'r--');
+title('Power Spectrum - Ch1');
+
+%% Save
+save('step2_1_workspace.mat', 'reader', 'fs', 'nChan', 'nSamples', 'data');
+fprintf('✓ Saved: step2_1_workspace.mat\n');

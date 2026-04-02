@@ -1,0 +1,74 @@
+===========================================================
+  STEP 3: qHFO VALIDATION (Good Signal Check) — Python
+===========================================================
+
+[A] Reading channels.tsv...
+  Total channels: 62
+  SEEG channels: 40
+  Good SEEG channels: 32
+  Channels: AL1, AL2, AL3, AL4, AL5, AL6, AL7, AL8, BD1, BD2, BD3, BD4, BD5, BD6, BD7, BD8, CD1, CD2, CD3, CD4, CD5, CD6, CD7, CD8, DD1, DD2, DD3, DD4, DD5, DD6, DD7, DD8
+
+[B] Loading qHFO events from H5...
+  Total qHFOs: 23953
+  Time range: 2410.0 – 56642.5 sec (15.1 hours)
+  Channels with HFOs: 32 unique
+
+[C] Loading validTimes from H5...
+  Total valid intervals: 2441
+  Channels covered: 33 unique
+
+[D] Building good-signal lookup per channel...
+  Intervals per channel: min=73, max=74, mean=74.0
+
+[E] FAST: Computing intersection of good-signal intervals (all 32 channels)...
+  Intersection: 4 intervals in 0.003 sec
+  Validating 23953 qHFOs (vectorized)...
+  Validation completed in 0.0004 seconds
+
+===========================================================
+  RESULTS
+===========================================================
+  Total qHFOs:    23953
+  Valid qHFOs:    23763 (99.2%)
+  Rejected qHFOs: 190 (0.8%)
+
+  Valid HFOs per channel:
+    AL1  (idx  1): 932 HFOs
+    AL2  (idx  2): 3222 HFOs
+    AL3  (idx  3): 2126 HFOs
+    AL4  (idx  4): 696 HFOs
+    AL5  (idx  5): 1161 HFOs
+    AL6  (idx  6): 209 HFOs
+    AL7  (idx  7): 214 HFOs
+    AL8  (idx  8): 42 HFOs
+    BD1  (idx 11): 3253 HFOs
+    BD2  (idx 12): 2657 HFOs
+    BD3  (idx 13): 2364 HFOs
+    BD4  (idx 14): 2336 HFOs
+    BD5  (idx 15): 743 HFOs
+    BD6  (idx 16): 56 HFOs
+    BD7  (idx 17): 79 HFOs
+    BD8  (idx 18): 41 HFOs
+    CD1  (idx 21): 495 HFOs
+    CD2  (idx 22): 172 HFOs
+    CD3  (idx 23): 188 HFOs
+    CD4  (idx 24): 517 HFOs
+    CD5  (idx 25): 492 HFOs
+    CD6  (idx 26): 249 HFOs
+    CD7  (idx 27): 147 HFOs
+    CD8  (idx 28): 186 HFOs
+    DD1  (idx 31): 212 HFOs
+    DD2  (idx 32): 167 HFOs
+    DD3  (idx 33): 19 HFOs
+    DD4  (idx 34): 16 HFOs
+    DD5  (idx 35): 22 HFOs
+    DD6  (idx 36): 49 HFOs
+    DD7  (idx 37): 299 HFOs
+    DD8  (idx 38): 402 HFOs
+
+  Saved: C:\Users\aakhtari\Documents\MATLAB\step3_validated_qHFO.mat
+  Plot saved: C:\Users\aakhtari\Documents\MATLAB\step3_validation_plot.png
+
+===========================================================
+  STEP 3 COMPLETE
+===========================================================
