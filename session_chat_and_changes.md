@@ -119,4 +119,19 @@ Requires CAR output in `car_output`. At the end opens the plot and waits for Ent
 
 ---
 
+## Session: 2026-04-02
+
+### GitHub setup
+
+- Initialized git repository in `C:\Users\aakhtari\Documents\MATLAB`
+- Added remote: https://github.com/abtinunmc/HFO-GLISKE
+- Pushed all 93 files (scripts, data, plots, outputs) to GitHub
+- Both Claude Code (local) and Claude.ai (web) can now access the repo
+
+### Save convention
+
+- Type **"save s"** during a session to append updates to this file
+
+---
+
 *Session summary saved to session_chat_and_changes.md*
