@@ -1,0 +1,22 @@
+# Data files - contain patient data, never commit new ones
+*.mat
+*.dat
+*.csv
+
+# Output directories
+car_output/
+output files/
+
+# Large image outputs (optional - remove if you want to track plots)
+# *.png
+
+# Python
+__pycache__/
+*.pyc
+
+# MATLAB
+*.asv
+
+# OS files
+.DS_Store
+Thumbs.db
