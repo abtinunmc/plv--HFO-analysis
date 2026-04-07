@@ -4,6 +4,7 @@ Step 1: set paths/params and check everything is there.
 """
 
 import os
+import sys
 
 # where the CAR .lay and .dat files live
 CAR_INPUT_DIR = r"C:\Users\aakhtari\Documents\MATLAB\car_output"
@@ -11,7 +12,7 @@ CAR_INPUT_DIR = r"C:\Users\aakhtari\Documents\MATLAB\car_output"
 # 80–500 Hz HFO band (we'll use zero-phase later)
 LOW_HZ = 80
 HIGH_HZ = 500
-# 4 = steep enough to cut junk outside the band, still stable and standard for HFO
+# 10 = steep rolloff for clean HFO band, elliptic filter is stable at this order
 FILTER_ORDER = 10
 
 # has to match the CAR filenames
@@ -62,7 +63,7 @@ for run in RUNS:
 
 print("Step 1 OK: paths and params look good, asserts passed.")
 print(f"  CAR input dir: {CAR_INPUT_DIR}")
-print(f"  Filter: {LOW_HZ}–{HIGH_HZ} Hz, order {FILTER_ORDER}")
+print(f"  Filter: {LOW_HZ}-{HIGH_HZ} Hz, order {FILTER_ORDER}")
 print(f"  CAR .lay files found: {len(lay_files)}")
 
 # ── Step 2a: Read CAR .lay file and parse header ──
@@ -202,7 +203,7 @@ except Exception as e:
     print(f'  Plot skipped: {e}')
     fig_path = None
 
-# Open the plot and wait for user before continuing
+# Open the plot and wait for user before continuing (skip if non-interactive)
 plot_path = r"C:\Users\aakhtari\Documents\MATLAB\plots\step2a_header_parsing_plot.png"
 if os.path.isfile(plot_path):
     try:
@@ -210,7 +211,8 @@ if os.path.isfile(plot_path):
     except Exception:
         import subprocess
         subprocess.run(['start', '', plot_path], shell=True)
-    input('\nPress Enter to continue...')
+    if sys.stdin.isatty() and os.environ.get('NONINTERACTIVE') != '1':
+        input('\nPress Enter to continue...')
 
 
 
@@ -225,18 +227,35 @@ import matplotlib.pyplot as plt
 #%% Checks
 nyquist = FS / 2
 print(f"Filter: {LOW_HZ}-{HIGH_HZ} Hz, Order {FILTER_ORDER}, Fs={FS} Hz")
-print(f"Nyquist: {HIGH_HZ} < {nyquist} Hz → {'✓' if HIGH_HZ < nyquist else '✗'}")
+print(f"Nyquist: {HIGH_HZ} < {nyquist} Hz -> {'OK' if HIGH_HZ < nyquist else 'FAIL'}")
 #use ellip filter for stability instead of butter
 # Design filter
 sos = ellip(FILTER_ORDER, 0.5, 65, [LOW_HZ, HIGH_HZ], btype='bandpass', fs=FS, output='sos')
-print(f"SOS sections: {sos.shape[0]} → ✓")
+print(f"SOS sections: {sos.shape[0]} -> OK")
+
+# Plot frequency response
+w, h = sosfreqz(sos, worN=2048, fs=FS)
+h_db = 20 * np.log10(np.abs(h) + 1e-10)
+
+fig, ax = plt.subplots(figsize=(10, 5))
+ax.plot(w, h_db, 'b', linewidth=1.5)
+ax.axvline(LOW_HZ, color='r', linestyle='--', label=f'Low cutoff ({LOW_HZ} Hz)')
+ax.axvline(HIGH_HZ, color='r', linestyle='--', label=f'High cutoff ({HIGH_HZ} Hz)')
+ax.axhline(-3, color='g', linestyle=':', label='-3 dB')
+ax.set_xlim([0, FS / 2])
+ax.set_ylim([-80, 5])
+ax.set_xlabel('Frequency (Hz)')
+ax.set_ylabel('Gain (dB)')
+ax.set_title(f'Step 4: Elliptic Bandpass Filter Response\n{LOW_HZ}-{HIGH_HZ} Hz, Order {FILTER_ORDER}', fontweight='bold')
+ax.legend(loc='upper right')
+ax.grid(True, alpha=0.3)
 
 # save and open so you see the plot
 filter_plot_dir = r"C:\Users\aakhtari\Documents\MATLAB\plots"
 os.makedirs(filter_plot_dir, exist_ok=True)
 filter_plot_path = os.path.join(filter_plot_dir, "step4_filter_feasibility.png")
-plt.savefig(filter_plot_path, dpi=150)
-plt.close()
+fig.savefig(filter_plot_path, dpi=150, bbox_inches='tight')
+plt.close(fig)
 
 print(f"\n  Filter feasibility plot saved: {filter_plot_path}")
 try:
@@ -244,14 +263,13 @@ try:
 except Exception:
     import subprocess
     subprocess.run(['start', '', filter_plot_path], shell=True)
-input("Press Enter to continue after viewing the plot...")
+if sys.stdin.isatty() and os.environ.get('NONINTERACTIVE') != '1':
+    input("Press Enter to continue after viewing the plot...")
 
-print("\n✓ Filter feasible")
+print("\nFilter feasible - OK")
 
 
 # ── Step 5: Load CAR .dat metadata (no filtering yet) ──
-
-import numpy as np
 
 dtype_map = {
     0: np.int16,
@@ -302,3 +320,208 @@ for run in RUNS:
     )
 
 print("Step 5 OK: CAR metadata loaded for all runs. Ready for filtering in next step.")
+
+
+# ── Step 6: Apply bandpass filter to CAR data ──
+
+from scipy.signal import sosfiltfilt
+import time
+
+# output directory for filtered data
+FILTERED_OUTPUT_DIR = r"C:\Users\aakhtari\Documents\MATLAB\bandpass_output"
+os.makedirs(FILTERED_OUTPUT_DIR, exist_ok=True)
+
+# sos filter already designed in Step 4, reuse it
+
+print(f"\nStep 6: Applying {LOW_HZ}-{HIGH_HZ} Hz bandpass filter...")
+print(f"  Output dir: {FILTERED_OUTPUT_DIR}")
+
+total_t0 = time.perf_counter()
+
+for run in RUNS:
+    info = CAR_RUN_INFO[run]
+    dat_path = info["dat_path"]
+    n_ch = info["n_channels"]
+    n_samp = info["n_samples"]
+    dtype = info["dtype"]
+    calib = info["calibration"]
+    header_len = info["header_len"]
+    fs = info["fs"]
+
+    print(f"\n  {run}: {n_ch} ch x {n_samp} samples ({n_samp/fs/3600:.2f} h)")
+
+    run_t0 = time.perf_counter()
+
+    # read entire CAR .dat file
+    with open(dat_path, 'rb') as f:
+        if header_len > 0:
+            f.seek(header_len)
+        raw = np.fromfile(f, dtype=dtype)
+
+    # reshape to (n_samples, n_channels)
+    n_samp_actual = len(raw) // n_ch
+    if n_samp_actual * n_ch != len(raw):
+        print(f"    warning: truncating {len(raw) - n_samp_actual * n_ch} extra samples")
+    data = raw[:n_samp_actual * n_ch].reshape(n_samp_actual, n_ch).astype(np.float64)
+
+    # apply calibration to get microvolts
+    data *= calib
+
+    print(f"    loaded: {data.shape}, applying filter...")
+
+    # apply zero-phase bandpass filter channel by channel
+    # sosfiltfilt needs axis=0 for (samples, channels) layout
+    filtered = np.zeros_like(data)
+    for ch_i in range(n_ch):
+        filtered[:, ch_i] = sosfiltfilt(sos, data[:, ch_i])
+
+    # convert back to original dtype for storage
+    filtered /= calib
+    np.clip(filtered, np.iinfo(dtype).min, np.iinfo(dtype).max, out=filtered)
+    filtered_int = filtered.astype(dtype)
+
+    # save filtered .dat
+    out_dat_name = f"{SUBJECT}_{SESSION}_task-all_{run}_ieeg_CAR_bp.dat"
+    out_dat_path = os.path.join(FILTERED_OUTPUT_DIR, out_dat_name)
+    filtered_int.tofile(out_dat_path)
+
+    # copy and modify .lay to point to new .dat
+    lay_name = f"{SUBJECT}_{SESSION}_task-all_{run}{CAR_LAY_SUFFIX}"
+    lay_path = os.path.join(CAR_INPUT_DIR, lay_name)
+    with open(lay_path, 'r') as f:
+        lay_text = f.read()
+    old_dat_name = f"{SUBJECT}_{SESSION}_task-all_{run}{CAR_DAT_SUFFIX}"
+    lay_text = lay_text.replace(old_dat_name, out_dat_name)
+    out_lay_path = os.path.join(FILTERED_OUTPUT_DIR, out_dat_name.replace('.dat', '.lay'))
+    with open(out_lay_path, 'w') as f:
+        f.write(lay_text)
+
+    run_dt = time.perf_counter() - run_t0
+    out_size_mb = os.path.getsize(out_dat_path) / 1e6
+    print(f"    done in {run_dt:.1f}s, output: {out_size_mb:.1f} MB")
+    print(f"    {out_dat_path}")
+
+total_dt = time.perf_counter() - total_t0
+print(f"\nStep 6 OK: Bandpass filtering complete. Total time: {total_dt:.1f}s")
+print(f"  Filtered files saved to: {FILTERED_OUTPUT_DIR}")
+
+
+# ── Step 6b: Before/After bandpass visualization ──
+
+print("\nStep 6b: Generating before/after bandpass plot...")
+
+# pick first run for visualization
+viz_run = RUNS[0]
+viz_info = CAR_RUN_INFO[viz_run]
+
+# load a short segment (5 seconds) from the middle of the recording
+viz_fs = viz_info["fs"]
+viz_n_ch = viz_info["n_channels"]
+viz_dtype = viz_info["dtype"]
+viz_calib = viz_info["calibration"]
+viz_header_len = viz_info["header_len"]
+viz_n_samp = viz_info["n_samples"]
+
+# 5-second window from the middle
+seg_dur_sec = 5
+seg_samples = int(seg_dur_sec * viz_fs)
+start_sample = viz_n_samp // 2  # middle of recording
+
+# read CAR data (before bandpass)
+car_dat_path = viz_info["dat_path"]
+bytes_per_sample = np.dtype(viz_dtype).itemsize
+sample_stride = viz_n_ch * bytes_per_sample
+
+with open(car_dat_path, 'rb') as f:
+    f.seek(viz_header_len + start_sample * sample_stride)
+    raw_before = np.fromfile(f, dtype=viz_dtype, count=seg_samples * viz_n_ch)
+
+n_read = len(raw_before) // viz_n_ch
+raw_before = raw_before[:n_read * viz_n_ch].reshape(n_read, viz_n_ch).astype(np.float64)
+raw_before *= viz_calib  # convert to microvolts
+
+# read filtered data (after bandpass)
+bp_dat_path = os.path.join(FILTERED_OUTPUT_DIR, f"{SUBJECT}_{SESSION}_task-all_{viz_run}_ieeg_CAR_bp.dat")
+with open(bp_dat_path, 'rb') as f:
+    f.seek(start_sample * sample_stride)  # no header in our output
+    raw_after = np.fromfile(f, dtype=viz_dtype, count=seg_samples * viz_n_ch)
+
+n_read_after = len(raw_after) // viz_n_ch
+raw_after = raw_after[:n_read_after * viz_n_ch].reshape(n_read_after, viz_n_ch).astype(np.float64)
+raw_after *= viz_calib
+
+# use the shorter of the two
+n_plot = min(n_read, n_read_after)
+raw_before = raw_before[:n_plot, :]
+raw_after = raw_after[:n_plot, :]
+
+# time axis
+t_sec = np.arange(n_plot) / viz_fs
+
+# pick first 5 channels to plot (cleaner visualization)
+n_ch_plot = min(5, viz_n_ch)
+
+# get channel names from the .lay header
+lay_name = f"{SUBJECT}_{SESSION}_task-all_{viz_run}{CAR_LAY_SUFFIX}"
+lay_path = os.path.join(CAR_INPUT_DIR, lay_name)
+header = run_headers[viz_run]
+ch_names = header.get('ChannelNames', [f'Ch{i}' for i in range(viz_n_ch)])
+
+# create figure with 3 rows: before, after, overlay of one channel
+fig, axes = plt.subplots(3, 1, figsize=(14, 10))
+
+# row 1: before bandpass (stacked traces)
+ax1 = axes[0]
+offsets = np.arange(n_ch_plot) * 200  # 200 µV spacing between channels
+for i in range(n_ch_plot):
+    ax1.plot(t_sec, raw_before[:, i] + offsets[i], linewidth=0.5, label=ch_names[i] if i < len(ch_names) else f'Ch{i}')
+ax1.set_ylabel('Amplitude (µV, offset)')
+ax1.set_title(f'BEFORE Bandpass (CAR only) - {viz_run}', fontweight='bold')
+ax1.legend(loc='upper right', fontsize=8)
+ax1.set_xlim([t_sec[0], t_sec[-1]])
+ax1.grid(True, alpha=0.3)
+
+# row 2: after bandpass (stacked traces)
+ax2 = axes[1]
+for i in range(n_ch_plot):
+    ax2.plot(t_sec, raw_after[:, i] + offsets[i], linewidth=0.5, label=ch_names[i] if i < len(ch_names) else f'Ch{i}')
+ax2.set_ylabel('Amplitude (µV, offset)')
+ax2.set_title(f'AFTER Bandpass ({LOW_HZ}-{HIGH_HZ} Hz) - {viz_run}', fontweight='bold')
+ax2.legend(loc='upper right', fontsize=8)
+ax2.set_xlim([t_sec[0], t_sec[-1]])
+ax2.grid(True, alpha=0.3)
+
+# row 3: overlay comparison for one channel (zoomed to 0.5 sec)
+ax3 = axes[2]
+zoom_samples = int(0.5 * viz_fs)  # 0.5 second zoom
+ch_overlay = 0  # first channel
+ax3.plot(t_sec[:zoom_samples], raw_before[:zoom_samples, ch_overlay],
+         linewidth=1, alpha=0.7, label='Before (CAR)', color='blue')
+ax3.plot(t_sec[:zoom_samples], raw_after[:zoom_samples, ch_overlay],
+         linewidth=1, alpha=0.9, label=f'After ({LOW_HZ}-{HIGH_HZ} Hz)', color='red')
+ax3.set_xlabel('Time (s)')
+ax3.set_ylabel('Amplitude (µV)')
+ch_label = ch_names[ch_overlay] if ch_overlay < len(ch_names) else f'Ch{ch_overlay}'
+ax3.set_title(f'Overlay: {ch_label} (0.5s zoom)', fontweight='bold')
+ax3.legend(loc='upper right', fontsize=9)
+ax3.grid(True, alpha=0.3)
+
+fig.suptitle(f'Step 6: Bandpass Filter Effect - {SUBJECT}_{SESSION}', fontweight='bold', fontsize=14)
+fig.tight_layout()
+
+# save plot
+bp_plot_path = os.path.join(filter_plot_dir, "step6_bandpass_before_after.png")
+fig.savefig(bp_plot_path, dpi=150, bbox_inches='tight')
+plt.close(fig)
+
+print(f"  Plot saved: {bp_plot_path}")
+
+# open the plot
+try:
+    os.startfile(bp_plot_path)
+except Exception:
+    import subprocess
+    subprocess.run(['start', '', bp_plot_path], shell=True)
+
+if sys.stdin.isatty() and os.environ.get('NONINTERACTIVE') != '1':
+    input("\nPress Enter to finish...")
