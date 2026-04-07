@@ -283,7 +283,7 @@ print(f"\n" + "=" * 50)
 print("Step 7c: Compute Hilbert phase")
 print("=" * 50)
 
-from scipy.signal import hilbert
+from scipy.signal import hilbert, step
 
 ALL_PHASES = {}
 
@@ -394,67 +394,272 @@ print(f"Step 7d OK: PLV matrices computed")
 print(f"  Total PLV matrices: {total_matrices}")
 print(f"  Matrix size: {n_channels} x {n_channels}")
 
-# === VALIDATION PLOT: Show sample PLV matrices ===
+#end of step 7d###########################################################################################
 
-print(f"\nGenerating Step 7d validation plot...")
+
+# ── Step 7e: Average PLV across HFOs → connectivity matrix ──
+#
+# This step computes the mean PLV matrix across all HFO events.
+# The result is a single (n_channels x n_channels) connectivity matrix
+# showing average phase synchronization between each channel pair.
+#
+# We compute:
+#   1. Per-run average PLV matrix
+#   2. Global average PLV matrix (across all runs)
+
+print(f"\n" + "=" * 50)
+print("Step 7e: Average PLV across HFOs")
+print("=" * 50)
+
+# Per-run average PLV
+AVG_PLV_PER_RUN = {}
+
+for run in RUNS:
+    plv_list = ALL_PLV[run]
+    n_mat = len(plv_list)
+
+    if n_mat == 0:
+        print(f"  {run}: no PLV matrices, skipping")
+        continue
+
+    # Stack all matrices and take mean
+    plv_stack = np.stack(plv_list, axis=0)  # (n_hfos, n_channels, n_channels)
+    avg_plv = np.mean(plv_stack, axis=0)     # (n_channels, n_channels)
+
+    AVG_PLV_PER_RUN[run] = avg_plv
+
+    # Stats on upper triangle (excluding diagonal)
+    upper_tri = avg_plv[np.triu_indices(avg_plv.shape[0], k=1)]
+    print(f"  {run}: averaged {n_mat} matrices")
+    print(f"    Mean PLV: {upper_tri.mean():.3f}, Std: {upper_tri.std():.3f}")
+    print(f"    Min: {upper_tri.min():.3f}, Max: {upper_tri.max():.3f}")
+
+# Global average (across all runs)
+all_avg_matrices = list(AVG_PLV_PER_RUN.values())
+if len(all_avg_matrices) > 0:
+    GLOBAL_AVG_PLV = np.mean(np.stack(all_avg_matrices, axis=0), axis=0)
+
+    upper_tri_global = GLOBAL_AVG_PLV[np.triu_indices(GLOBAL_AVG_PLV.shape[0], k=1)]
+    print(f"\n  Global average (all runs combined):")
+    print(f"    Mean PLV: {upper_tri_global.mean():.3f}, Std: {upper_tri_global.std():.3f}")
+    print(f"    Min: {upper_tri_global.min():.3f}, Max: {upper_tri_global.max():.3f}")
+else:
+    GLOBAL_AVG_PLV = None
+    print("  No PLV matrices to average!")
+
+print(f"\n" + "=" * 50)
+print(f"Step 7e OK: Average PLV matrices computed")
+
+#end of step 7e############################################################################################
+
+
+# ── Step 7f: Save results to .mat and .csv files ──
+#
+# Saves:
+#   1. Per-run PLV data (.mat) - all individual HFO PLV matrices + average
+#   2. Global average PLV (.mat) - single connectivity matrix across all runs
+#   3. CSV exports - for easy viewing in Excel/other tools
+
+print(f"\n" + "=" * 50)
+print("Step 7f: Save results to files")
+print("=" * 50)
+
+from scipy.io import savemat
+import csv
+
+os.makedirs(PLV_OUTPUT_DIR, exist_ok=True)
+
+# 1. Save per-run PLV data
+for run in RUNS:
+    if run not in AVG_PLV_PER_RUN:
+        print(f"  {run}: no data, skipping")
+        continue
+
+    plv_list = ALL_PLV[run]
+    avg_plv = AVG_PLV_PER_RUN[run]
+
+    # Stack individual PLV matrices into 3D array
+    plv_3d = np.stack(plv_list, axis=0)  # (n_hfos, n_channels, n_channels)
+
+    # Save .mat file
+    mat_path = os.path.join(PLV_OUTPUT_DIR, f"plv_{run}.mat")
+    savemat(mat_path, {
+        'plv_per_hfo': plv_3d,           # 3D: (n_hfos, n_ch, n_ch)
+        'plv_average': avg_plv,           # 2D: (n_ch, n_ch)
+        'channel_names': np.array(channel_names, dtype=object),
+        'n_hfos': len(plv_list),
+        'n_channels': n_channels,
+        'subject': SUBJECT,
+        'session': SESSION,
+        'run': run,
+    }, do_compression=True)
+
+    # Save average PLV as CSV (easier to view)
+    csv_path = os.path.join(PLV_OUTPUT_DIR, f"plv_avg_{run}.csv")
+    with open(csv_path, 'w', newline='') as f:
+        writer = csv.writer(f)
+        # Header row with channel names
+        writer.writerow([''] + channel_names)
+        # Data rows
+        for i, row in enumerate(avg_plv):
+            writer.writerow([channel_names[i]] + [f'{v:.4f}' for v in row])
+
+    print(f"  {run}: saved {mat_path}")
+    print(f"         saved {csv_path}")
+
+# 2. Save global average PLV
+if GLOBAL_AVG_PLV is not None:
+    # .mat file
+    global_mat_path = os.path.join(PLV_OUTPUT_DIR, "plv_global_average.mat")
+    savemat(global_mat_path, {
+        'plv_global_average': GLOBAL_AVG_PLV,
+        'channel_names': np.array(channel_names, dtype=object),
+        'n_channels': n_channels,
+        'n_runs': len(AVG_PLV_PER_RUN),
+        'runs_included': list(AVG_PLV_PER_RUN.keys()),
+        'subject': SUBJECT,
+        'session': SESSION,
+    }, do_compression=True)
+
+    # CSV file
+    global_csv_path = os.path.join(PLV_OUTPUT_DIR, "plv_global_average.csv")
+    with open(global_csv_path, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow([''] + channel_names)
+        for i, row in enumerate(GLOBAL_AVG_PLV):
+            writer.writerow([channel_names[i]] + [f'{v:.4f}' for v in row])
+
+    print(f"\n  Global average saved:")
+    print(f"    {global_mat_path}")
+    print(f"    {global_csv_path}")
+
+print(f"\n" + "=" * 50)
+print(f"Step 7f OK: Results saved to {PLV_OUTPUT_DIR}")
+
+#end of step 7f############################################################################################
+
+
+# ── Step 7g: Final connectivity visualization ──
+#
+# Creates a comprehensive figure showing:
+#   1. Global average PLV heatmap with channel labels
+#   2. Top N strongest connections (bar chart)
+#   3. PLV distribution histogram
+#   4. Per-run comparison
+
+print(f"\n" + "=" * 50)
+print("Step 7g: Final connectivity visualization")
+print("=" * 50)
 
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-# Find first run with PLV matrices
-viz_run = None
-for r in RUNS:
-    if len(ALL_PLV[r]) > 0:
-        viz_run = r
-        break
-
-if viz_run is None:
-    print("  No PLV matrices found, skipping validation plot")
+if GLOBAL_AVG_PLV is None:
+    print("  No PLV data available, skipping final plot")
 else:
-    # Get first 4 PLV matrices (or fewer if not enough)
-    plv_list = ALL_PLV[viz_run]
-    n_show = min(4, len(plv_list))
+    print("  Generating final connectivity figure...")
 
-    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
-    axes = axes.flatten()
+    fig = plt.figure(figsize=(16, 12))
 
-    for i in range(4):
-        ax = axes[i]
-        if i < n_show:
-            plv_mat = plv_list[i]
-            im = ax.imshow(plv_mat, cmap='hot', vmin=0, vmax=1, aspect='equal')
-            ax.set_title(f'HFO #{i+1} PLV Matrix', fontweight='bold')
-            ax.set_xlabel('Channel')
-            ax.set_ylabel('Channel')
+    # Create grid layout
+    gs = fig.add_gridspec(2, 3, hspace=0.3, wspace=0.3)
 
-            # Add colorbar
-            cbar = plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
-            cbar.set_label('PLV')
+    # 1. Global average PLV heatmap (large, left side)
+    ax1 = fig.add_subplot(gs[:, 0])
+    im1 = ax1.imshow(GLOBAL_AVG_PLV, cmap='hot', vmin=0, vmax=1, aspect='equal')
+    ax1.set_title('Global Average PLV\nConnectivity Matrix', fontweight='bold', fontsize=12)
+    ax1.set_xlabel('Channel')
+    ax1.set_ylabel('Channel')
+    cbar1 = plt.colorbar(im1, ax=ax1, fraction=0.046, pad=0.04)
+    cbar1.set_label('PLV (0=no sync, 1=perfect)')
 
-            # Show channel names on axes (subsample if too many)
-            n_ch = plv_mat.shape[0]
-            if n_ch <= 16:
-                ax.set_xticks(range(n_ch))
-                ax.set_yticks(range(n_ch))
-                ax.set_xticklabels(channel_names[:n_ch], rotation=90, fontsize=6)
-                ax.set_yticklabels(channel_names[:n_ch], fontsize=6)
-            else:
-                # Show every 4th channel
-                tick_idx = list(range(0, n_ch, 4))
-                ax.set_xticks(tick_idx)
-                ax.set_yticks(tick_idx)
-                ax.set_xticklabels([channel_names[j] for j in tick_idx], rotation=90, fontsize=6)
-                ax.set_yticklabels([channel_names[j] for j in tick_idx], fontsize=6)
-        else:
-            ax.axis('off')
+    # Channel labels
+    n_ch = GLOBAL_AVG_PLV.shape[0]
+    if n_ch <= 20:
+        ax1.set_xticks(range(n_ch))
+        ax1.set_yticks(range(n_ch))
+        ax1.set_xticklabels(channel_names[:n_ch], rotation=90, fontsize=6)
+        ax1.set_yticklabels(channel_names[:n_ch], fontsize=6)
+    else:
+        tick_idx = list(range(0, n_ch, 4))
+        ax1.set_xticks(tick_idx)
+        ax1.set_yticks(tick_idx)
+        ax1.set_xticklabels([channel_names[j] for j in tick_idx], rotation=90, fontsize=7)
+        ax1.set_yticklabels([channel_names[j] for j in tick_idx], fontsize=7)
 
-    fig.suptitle(f'Step 7d: PLV Matrices Validation - {SUBJECT} {viz_run}\n(0=no sync, 1=perfect sync)',
+    # 2. Top 15 strongest connections (bar chart)
+    ax2 = fig.add_subplot(gs[0, 1:])
+
+    # Get upper triangle indices and values
+    triu_i, triu_j = np.triu_indices(n_ch, k=1)
+    plv_values = GLOBAL_AVG_PLV[triu_i, triu_j]
+
+    # Sort and get top 15
+    n_top = min(15, len(plv_values))
+    top_idx = np.argsort(plv_values)[-n_top:][::-1]
+
+    top_labels = [f"{channel_names[triu_i[k]]}-{channel_names[triu_j[k]]}" for k in top_idx]
+    top_values = plv_values[top_idx]
+
+    bars = ax2.barh(range(n_top), top_values, color='steelblue', edgecolor='black')
+    ax2.set_yticks(range(n_top))
+    ax2.set_yticklabels(top_labels, fontsize=8)
+    ax2.set_xlabel('PLV')
+    ax2.set_xlim([0, 1])
+    ax2.set_title(f'Top {n_top} Strongest Connections', fontweight='bold')
+    ax2.invert_yaxis()
+
+    # Add value labels on bars
+    for bar, val in zip(bars, top_values):
+        ax2.text(val + 0.02, bar.get_y() + bar.get_height()/2, f'{val:.3f}',
+                 va='center', fontsize=7)
+
+    # 3. PLV distribution histogram
+    ax3 = fig.add_subplot(gs[1, 1])
+    ax3.hist(plv_values, bins=30, color='steelblue', edgecolor='black', alpha=0.7)
+    ax3.axvline(plv_values.mean(), color='red', linestyle='--', linewidth=2,
+                label=f'Mean: {plv_values.mean():.3f}')
+    ax3.axvline(np.median(plv_values), color='orange', linestyle=':', linewidth=2,
+                label=f'Median: {np.median(plv_values):.3f}')
+    ax3.set_xlabel('PLV')
+    ax3.set_ylabel('Count (channel pairs)')
+    ax3.set_title('PLV Distribution', fontweight='bold')
+    ax3.legend(fontsize=8)
+    ax3.set_xlim([0, 1])
+
+    # 4. Per-run mean PLV comparison
+    ax4 = fig.add_subplot(gs[1, 2])
+
+    run_names = list(AVG_PLV_PER_RUN.keys())
+    run_means = []
+    run_stds = []
+    for r in run_names:
+        upper = AVG_PLV_PER_RUN[r][np.triu_indices(n_ch, k=1)]
+        run_means.append(upper.mean())
+        run_stds.append(upper.std())
+
+    x_pos = range(len(run_names))
+    ax4.bar(x_pos, run_means, yerr=run_stds, color='lightcoral', edgecolor='black',
+            capsize=5, alpha=0.8)
+    ax4.set_xticks(x_pos)
+    ax4.set_xticklabels(run_names, rotation=45, ha='right', fontsize=9)
+    ax4.set_ylabel('Mean PLV')
+    ax4.set_title('Mean PLV per Run', fontweight='bold')
+    ax4.set_ylim([0, 1])
+
+    # Add global mean line
+    ax4.axhline(plv_values.mean(), color='blue', linestyle='--', alpha=0.7,
+                label=f'Global: {plv_values.mean():.3f}')
+    ax4.legend(fontsize=8)
+
+    # Main title
+    fig.suptitle(f'PLV Connectivity Analysis - {SUBJECT}_{SESSION}\n'
+                 f'{total_matrices} HFOs, {n_ch} channels, {len(run_names)} runs',
                  fontweight='bold', fontsize=14)
-    fig.tight_layout()
 
     # Save plot
-    plot_path = os.path.join(PLOT_DIR, "step7d_plv_matrices_validation.png")
+    plot_path = os.path.join(PLOT_DIR, "step7g_final_plv_connectivity.png")
     fig.savefig(plot_path, dpi=150, bbox_inches='tight')
     plt.close(fig)
 
@@ -467,5 +672,17 @@ else:
         import subprocess
         subprocess.run(['start', '', plot_path], shell=True)
 
-print(f"\nReady for Step 7e: Average PLV across HFOs")
-
+print(f"\n" + "=" * 50)
+print("PLV ANALYSIS COMPLETE")
+print("=" * 50)
+print(f"\nOutput files in: {PLV_OUTPUT_DIR}")
+print(f"Plots in: {PLOT_DIR}")
+print(f"\nSummary:")
+print(f"  Subject: {SUBJECT}")
+print(f"  Session: {SESSION}")
+print(f"  Runs processed: {len(AVG_PLV_PER_RUN)}")
+print(f"  Total HFOs analyzed: {total_matrices}")
+print(f"  Channels: {n_channels}")
+if GLOBAL_AVG_PLV is not None:
+    upper = GLOBAL_AVG_PLV[np.triu_indices(n_ch, k=1)]
+    print(f"  Global mean PLV: {upper.mean():.3f} +/- {upper.std():.3f}")

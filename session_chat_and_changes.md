@@ -176,6 +176,44 @@ Requires CAR output in `car_output`. At the end opens the plot and waits for Ent
 - Filtered data: `C:\Users\aakhtari\Documents\MATLAB\bandpass_output\`
 - Plots: `C:\Users\aakhtari\Documents\MATLAB\plots\`
 
+### PLV Analysis Pipeline (Steps 7a-7g) - Complete
+
+**What we did:**
+1. **Step 7a**: Setup paths, load validated HFOs from step3 .mat files
+2. **Step 7b**: Extract HFO segments from bandpass-filtered data
+3. **Step 7c**: Compute Hilbert transform to get instantaneous phase
+4. **Step 7d**: Compute PLV for all channel pairs per HFO
+5. **Step 7e**: Average PLV across HFOs to get connectivity matrix
+6. **Step 7f**: Save results to .mat and .csv files
+7. **Step 7g**: Generate final connectivity visualization
+
+**Output files:**
+- `plv_output/plv_run-XX.mat` - per-run PLV data (3D array + average)
+- `plv_output/plv_avg_run-XX.csv` - per-run average in spreadsheet format
+- `plv_output/plv_global_average.mat` - global connectivity matrix
+- `plv_output/plv_global_average.csv` - global average in spreadsheet
+- `plots/step7g_final_plv_connectivity.png` - final visualization
+
+**Key findings for sub-umich0018:**
+- Strong AL ↔ DD connectivity (PLV ~0.98-0.99) in left hemisphere
+- SOZ (BD) shows moderate connectivity
+- Cross-hemisphere connections (Left ↔ Right) are weaker
+- Patient had successful resection (Engel Ib) of left frontal cingulate cortical dysplasia
+
+### Patient Information (sub-umich0018)
+
+From participants.tsv:
+- Age: 41, Male
+- Pathology: Cortical dysplasia (CD)
+- Resection: Left frontal cingulate
+- Outcome: Engel Ib (seizure-free)
+- Electrodes: AL, BD, CD, DD (no thalamic electrodes)
+
+### Documentation Added
+
+- `CLAUDE.md` - Project context for Claude Code sessions
+- `PLV_explanation_and_thalamus_role.md` - Comprehensive explanation of PLV methodology and thalamus role in epilepsy
+
 ---
 
 *Session summary saved to session_chat_and_changes.md*
