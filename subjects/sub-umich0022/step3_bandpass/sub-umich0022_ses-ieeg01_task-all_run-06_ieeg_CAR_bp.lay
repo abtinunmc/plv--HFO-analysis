@@ -1,0 +1,127 @@
+[FileInfo]
+File=sub-umich0022_ses-ieeg01_task-all_run-06_ieeg_CAR_bp.dat
+FileType=Interleaved
+SamplingRate=4096
+HeaderLength=0
+Calibration=0.2
+WaveformCount=65
+DataType=0
+MainsFrequency=60
+
+[Patient]
+First= 
+MI= 
+Last= 
+Sex= 
+Hand= 
+BirthDate= 
+ID= 
+MedicalRecordN= 
+TestDate=01/05/13
+TestTime=07:00:26
+Physician= 
+Technician= 
+Medications=
+History= 
+Comments1= 
+Comments2= 
+
+
+
+
+
+[SampleTimes]
+0=25226.835
+1=25226.835
+4700581=26374.438
+9481581=27541.674
+14397581=28741.869
+19157581=29903.979
+23899581=31061.693
+28805581=32259.447
+33673581=33447.924
+
+[ChannelMap]
+LA1-Ref=1
+LA2-Ref=2
+LA3-Ref=3
+LA4-Ref=4
+LA5-Ref=5
+LA6-Ref=6
+LA7-Ref=7
+LA8-Ref=8
+LB1-Ref=9
+LB2-Ref=10
+LB3-Ref=11
+LB4-Ref=12
+LB5-Ref=13
+LB6-Ref=14
+LB7-Ref=15
+LB8-Ref=16
+LC1-Ref=17
+LC2-Ref=18
+LC3-Ref=19
+LC4-Ref=20
+LC5-Ref=21
+LC6-Ref=22
+LC7-Ref=23
+LC8-Ref=24
+LD1-Ref=25
+LD2-Ref=26
+LD3-Ref=27
+LD4-Ref=28
+LD5-Ref=29
+LD6-Ref=30
+LD7-Ref=31
+LD8-Ref=32
+LD9-Ref=33
+LD10-Ref=34
+LE1-Ref=35
+LE2-Ref=36
+LE3-Ref=37
+LE4-Ref=38
+LE5-Ref=39
+LE6-Ref=40
+LE7-Ref=41
+LE8-Ref=42
+LE9-Ref=43
+LE10-Ref=44
+FP1-Ref=45
+F7-Ref=46
+T3-Ref=47
+T5-Ref=48
+O1-Ref=49
+F3-Ref=50
+C3-Ref=51
+P3-Ref=52
+Fz-Ref=53
+Cz-Ref=54
+Pz-Ref=55
+Fp2-Ref=56
+F8-Ref=57
+T4-Ref=58
+T6-Ref=59
+O2-Ref=60
+F4-Ref=61
+C4-Ref=62
+P4-Ref=63
+EKG1-Ref=64
+EKG2-Ref=65
+
+[Comments]
+0.000000,0.000000,0,100,W
+0.001000,0.000000,0,100,Analyzer info - Persyst
+0.024000,0.000000,0,100,Start Recording
+0.290000,0.000000,0,100,Started Analyzer - Persyst
+4.976000,0.000000,0,100,Video Recording ON
+694.456000,0.000000,0,100,x
+747.911000,0.000000,0,100,still these
+2373.621000,0.000000,0,100,with chewing
+5797.000000,0.000000,0,100,W
+8417.650000,0.000000,0,100,checking hw/ changing cable
+8730.331000,0.000000,0,100,unplugged IV pole, 60Hz gone
+8770.593000,0.000000,0,100,notch filter on
+8771.601000,0.000000,0,100,Gain/Filter Change
+9133.341000,0.000000,0,100,Gain/Filter Change
+9176.000000,0.000000,0,100,W
+9177.787000,0.000000,0,100,mw r
